@@ -1,0 +1,54 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description?: string;
+  ogImage?: string;
+}
+
+const {
+  title,
+  description = 'Personally-eaten, personally-recommended food in Singapore and beyond. No sponsored posts, just receipts.',
+  ogImage,
+} = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍜</text></svg>" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    {ogImage && <meta property="og:image" content={new URL(ogImage, Astro.site)} />}
+    <meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
+    <slot name="head" />
+  </head>
+  <body class="min-h-screen bg-stone-50 text-stone-900 antialiased">
+    <header class="sticky top-0 z-[1000] border-b border-stone-200 bg-white/90 backdrop-blur">
+      <nav class="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
+        <a href="/" class="text-lg font-bold tracking-tight">🍜 tabelog<span class="text-stone-400">.kahhow</span></a>
+        <div class="flex items-center gap-4 text-sm font-medium">
+          <a href="/search" class="rounded-full bg-stone-100 px-3 py-1.5 hover:bg-stone-200">🔍 Search</a>
+        </div>
+      </nav>
+    </header>
+    <main class="mx-auto max-w-4xl px-4 py-6">
+      <slot />
+    </main>
+    <footer class="mt-12 border-t border-stone-200 py-8 text-center text-sm text-stone-500">
+      <p>
+        Every entry personally eaten &amp; paid for. By <a href="https://kahhow.com" class="underline hover:text-stone-700">Kahhow</a>.
+      </p>
+    </footer>
+  </body>
+</html>

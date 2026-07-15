@@ -1,0 +1,40 @@
+---
+import Base from '../../layouts/Base.astro';
+import RestaurantCard from '../../components/RestaurantCard.astro';
+import { getPublicRestaurants, type Restaurant } from '../../lib/restaurants';
+import { CATEGORIES, CATEGORY_SLUGS, type CategorySlug } from '../../lib/taxonomy';
+
+// v2 URL parity: 5 real categories plus all / featured / global
+export function getStaticPaths() {
+  return [...CATEGORY_SLUGS, 'all', 'featured', 'global'].map((category) => ({ params: { category } }));
+}
+
+const { category } = Astro.params;
+const all = await getPublicRestaurants();
+
+const pageDef: Record<string, { title: string; blurb: string; filter: (r: Restaurant) => boolean }> = {
+  all: { title: 'All places', blurb: 'Everything, unfiltered.', filter: () => true },
+  featured: { title: '⭐ Featured', blurb: 'The highly-recommended shortlist — go out of your way for these.', filter: (r) => r.data.rating === 'highly_recommend' },
+  global: { title: '🌏 Beyond Singapore', blurb: 'Eaten abroad, still worth remembering.', filter: (r) => r.data.country !== 'Singapore' },
+};
+const def =
+  pageDef[category!] ??
+  (() => {
+    const c = CATEGORIES[category as CategorySlug];
+    return {
+      title: `${c.emoji} ${c.label}`,
+      blurb: `${c.label} worth going back for.`,
+      filter: (r: Restaurant) => r.data.categories.includes(category as CategorySlug),
+    };
+  })();
+
+const restaurants = all.filter(def.filter);
+---
+
+<Base title={`${def.title} — tabelog by kahhow`} description={def.blurb}>
+  <h1 class="text-2xl font-bold">{def.title}</h1>
+  <p class="mt-1 text-stone-600">{def.blurb} <span class="text-stone-400">({restaurants.length})</span></p>
+  <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    {restaurants.map((r) => <RestaurantCard restaurant={r} />)}
+  </div>
+</Base>

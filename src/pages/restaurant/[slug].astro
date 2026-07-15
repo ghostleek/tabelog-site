@@ -1,0 +1,112 @@
+---
+import { render } from 'astro:content';
+import { Image } from 'astro:assets';
+import Base from '../../layouts/Base.astro';
+import { getPublicRestaurants, totalVisits, lastVisit, priceBand, mapsUrl, slugifyArea } from '../../lib/restaurants';
+import { RATING_DISPLAY, CATEGORIES } from '../../lib/taxonomy';
+
+export async function getStaticPaths() {
+  const restaurants = await getPublicRestaurants();
+  return restaurants.map((r) => ({ params: { slug: r.id }, props: { r } }));
+}
+
+const { r } = Astro.props;
+const { Content } = await render(r);
+const rating = RATING_DISPLAY[r.data.rating];
+const visits = totalVisits(r);
+const last = lastVisit(r);
+const gmaps = mapsUrl(r);
+const band = priceBand(r.data.price_per_pax);
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Restaurant',
+  name: r.data.name,
+  url: new URL(`/restaurant/${r.id}`, Astro.site).toString(),
+  ...(r.data.address && {
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: r.data.address,
+      ...(r.data.postal_code && { postalCode: r.data.postal_code }),
+      addressCountry: r.data.country === 'Singapore' ? 'SG' : r.data.country,
+    },
+  }),
+  ...(r.data.lat !== undefined && {
+    geo: { '@type': 'GeoCoordinates', latitude: r.data.lat, longitude: r.data.lng },
+  }),
+  ...(r.data.categories.length > 0 && { servesCuisine: r.data.categories }),
+  ...(band && { priceRange: band }),
+};
+---
+
+<Base title={`${r.data.name} — tabelog by kahhow`} description={`${rating.label}: ${r.data.name}${r.data.area ? ` (${r.data.area})` : ''}`}>
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} slot="head" />
+
+  <article>
+    <header>
+      <div class="flex items-start justify-between gap-3">
+        <h1 class="text-2xl font-bold leading-tight sm:text-3xl">{r.data.name}</h1>
+        <span class="shrink-0 rounded-full bg-stone-100 px-3 py-1 text-sm font-medium">{rating.emoji} {rating.label}</span>
+      </div>
+      <p class="mt-2 text-sm text-stone-500">
+        {r.data.categories.map((c) => (
+          <a href={`/${c}`} class="mr-2 hover:underline">{CATEGORIES[c].emoji} {CATEGORIES[c].label}</a>
+        ))}
+        {r.data.area && <a href={`/area/${slugifyArea(r.data.area)}`} class="mr-2 hover:underline">📍 {r.data.area}</a>}
+        {r.data.country !== 'Singapore' && <span class="mr-2">🌏 {r.data.country}</span>}
+        {r.data.is_hawker && <span class="mr-2">🏪 Hawker</span>}
+        {r.data.price_per_pax ? <span>~${r.data.price_per_pax}/pax</span> : null}
+      </p>
+    </header>
+
+    {
+      r.data.photos.length > 0 && (
+        <div class="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {r.data.photos.map((p) => (
+            <Image src={p} alt={r.data.name} width={480} height={360} class="h-40 w-full rounded-lg object-cover" />
+          ))}
+        </div>
+      )
+    }
+
+    <div class="prose prose-stone mt-6 max-w-none">
+      <Content />
+    </div>
+
+    {
+      r.data.dishes.length > 0 && (
+        <section class="mt-8">
+          <h2 class="text-lg font-bold">What was eaten</h2>
+          <ul class="mt-3 divide-y divide-stone-100 rounded-xl border border-stone-200 bg-white">
+            {r.data.dishes.map((d) => (
+              <li class="flex items-center justify-between px-4 py-2.5 text-sm">
+                <span>
+                  {d.signature && <span title="signature dish">⭐ </span>}
+                  {d.name}
+                  {d.description && <span class="text-stone-500"> — {d.description}</span>}
+                </span>
+                {d.price !== undefined && <span class="text-stone-500">${d.price.toFixed(2)}</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
+
+    <section class="mt-8 flex flex-wrap items-center gap-3 text-sm text-stone-600">
+      <span class="rounded-full bg-stone-100 px-3 py-1">
+        🍴 {visits} visit{visits === 1 ? '' : 's'}{last && ` · last ${last.toISOString().slice(0, 10)}`}
+      </span>
+      {gmaps && (
+        <a href={gmaps} target="_blank" rel="noopener" class="rounded-full bg-emerald-50 px-3 py-1 font-medium text-emerald-800 hover:bg-emerald-100">
+          Open in Google Maps ↗
+        </a>
+      )}
+      {r.data.website && (
+        <a href={r.data.website} target="_blank" rel="noopener" class="rounded-full bg-blue-50 px-3 py-1 font-medium text-blue-800 hover:bg-blue-100">
+          Website ↗
+        </a>
+      )}
+    </section>
+  </article>
+</Base>

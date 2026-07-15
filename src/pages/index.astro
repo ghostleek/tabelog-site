@@ -1,0 +1,67 @@
+---
+import Base from '../layouts/Base.astro';
+import Map from '../components/Map.astro';
+import RestaurantCard from '../components/RestaurantCard.astro';
+import { getPublicRestaurants, slugifyArea, lastVisit } from '../lib/restaurants';
+import { CATEGORIES, CATEGORY_SLUGS } from '../lib/taxonomy';
+
+const restaurants = await getPublicRestaurants();
+const featured = restaurants.filter((r) => r.data.rating === 'highly_recommend');
+const recent = [...restaurants]
+  .filter((r) => lastVisit(r))
+  .sort((a, b) => lastVisit(b)!.getTime() - lastVisit(a)!.getTime())
+  .slice(0, 6);
+const areas = [...new Set(restaurants.map((r) => r.data.area).filter((a): a is string => !!a))].sort();
+---
+
+<Base title="tabelog by kahhow — food actually worth revisiting">
+  <section class="py-6 text-center sm:py-10">
+    <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">Food actually worth revisiting</h1>
+    <p class="mx-auto mt-3 max-w-xl text-stone-600">
+      {restaurants.length} places personally eaten, paid for, and rated — mostly Singapore, hawkers first.
+    </p>
+    <div class="mt-5 flex flex-wrap justify-center gap-2">
+      {
+        CATEGORY_SLUGS.map((c) => (
+          <a href={`/${c}`} class="rounded-full border border-stone-300 bg-white px-4 py-1.5 text-sm font-medium hover:bg-stone-100">
+            {CATEGORIES[c].emoji} {CATEGORIES[c].label}
+          </a>
+        ))
+      }
+      <a href="/featured" class="rounded-full border border-amber-300 bg-amber-50 px-4 py-1.5 text-sm font-medium hover:bg-amber-100">⭐ Featured</a>
+      <a href="/global" class="rounded-full border border-stone-300 bg-white px-4 py-1.5 text-sm font-medium hover:bg-stone-100">🌏 Beyond SG</a>
+    </div>
+  </section>
+
+  <Map />
+
+  <section class="mt-10">
+    <div class="flex items-baseline justify-between">
+      <h2 class="text-xl font-bold">⭐ Highly recommended</h2>
+      <a href="/featured" class="text-sm font-medium text-stone-500 hover:text-stone-700">all {featured.length} →</a>
+    </div>
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {featured.slice(0, 6).map((r) => <RestaurantCard restaurant={r} />)}
+    </div>
+  </section>
+
+  <section class="mt-10">
+    <h2 class="text-xl font-bold">🕐 Recently visited</h2>
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {recent.map((r) => <RestaurantCard restaurant={r} />)}
+    </div>
+  </section>
+
+  <section class="mt-10">
+    <h2 class="text-xl font-bold">📍 By area</h2>
+    <div class="mt-4 flex flex-wrap gap-2">
+      {
+        areas.map((a) => (
+          <a href={`/area/${slugifyArea(a)}`} class="rounded-full bg-stone-100 px-3 py-1 text-sm hover:bg-stone-200">
+            {a}
+          </a>
+        ))
+      }
+    </div>
+  </section>
+</Base>

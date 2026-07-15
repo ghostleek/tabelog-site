@@ -1,0 +1,20 @@
+# build output
+dist/
+# generated content (sanitized from the private vault — never commit)
+src/data/
+# local vault symlink
+vault
+# generated types
+.astro/
+# dependencies
+node_modules/
+# embeddings cache
+.cache/
+# wrangler
+.wrangler/
+# environment variables
+.env
+.env.production
+# macOS
+.DS_Store
+public/search/

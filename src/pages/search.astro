@@ -1,0 +1,264 @@
+---
+import Base from '../layouts/Base.astro';
+---
+
+<Base title="Search — tabelog by kahhow" description="Search personally recommended food by name, dish, or vibe — or find what's near you.">
+  <h1 class="text-2xl font-bold">Search</h1>
+
+  <div class="mt-4 flex flex-col gap-3">
+    <input
+      id="q"
+      type="search"
+      placeholder="dish, place, vibe… e.g. “best kaya toast” or “late night noodles”"
+      class="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-base shadow-sm focus:border-stone-500 focus:outline-none"
+      autocomplete="off"
+    />
+    <div class="flex flex-wrap items-center gap-2 text-sm">
+      <button id="near-me" class="rounded-full border border-stone-300 bg-white px-3 py-1.5 font-medium hover:bg-stone-100">📍 Near me</button>
+      <input
+        id="postal"
+        inputmode="numeric"
+        maxlength="6"
+        placeholder="or postal code"
+        class="w-36 rounded-full border border-stone-300 bg-white px-3 py-1.5 focus:border-stone-500 focus:outline-none"
+      />
+      <span id="origin-label" class="text-stone-500"></span>
+      <span class="mx-1 hidden text-stone-300 sm:inline">|</span>
+      <button data-facet="star" class="facet rounded-full border border-stone-300 bg-white px-3 py-1.5 hover:bg-stone-100">⭐ top only</button>
+      <button data-facet="hawker" class="facet rounded-full border border-stone-300 bg-white px-3 py-1.5 hover:bg-stone-100">🏪 hawker</button>
+      <select id="cat" class="rounded-full border border-stone-300 bg-white px-3 py-1.5">
+        <option value="">all categories</option>
+        <option value="mains">🍜 mains</option>
+        <option value="desserts">🍦 desserts</option>
+        <option value="coffee">☕ coffee</option>
+        <option value="cakes">🍰 cakes</option>
+        <option value="alcohol">🍸 alcohol</option>
+      </select>
+      <button id="sort-dist" class="hidden rounded-full border border-stone-300 bg-white px-3 py-1.5 hover:bg-stone-100">↕ by distance</button>
+    </div>
+    <p id="status" class="text-sm text-stone-400">Loading index…</p>
+  </div>
+
+  <div id="results" class="mt-4 flex flex-col gap-2"></div>
+</Base>
+
+<script>
+  import MiniSearch from 'minisearch';
+
+  const $ = (id: string) => document.getElementById(id)!;
+  const resultsEl = $('results'), statusEl = $('status'), qEl = $('q') as HTMLInputElement;
+
+  type Stored = { name: string; area: string | null; rating: string; price: number | null; hawker: boolean; country: string; cats: string[] };
+  type Geo = Stored & { slug: string; lat: number; lng: number; categories: string[] };
+
+  let mini: MiniSearch | null = null;
+  let geo = new Map<string, Geo>();
+  let emb: { slugs: string[]; scales: number[]; dims: number; model: string | null; vectors: Int8Array | null } | null = null;
+  let stored = new Map<string, Stored>();
+
+  const state = {
+    q: '',
+    origin: null as { lat: number; lng: number } | null,
+    star: false,
+    hawker: false,
+    cat: '',
+    byDistance: false,
+    semRanks: new Map<string, number>(),
+    semForQuery: '',
+  };
+
+  // ---------- data loading ----------
+  const ready = (async () => {
+    const [kwRaw, geoRaw, metaRaw] = await Promise.all([
+      fetch('/search/keyword-index.json').then((r) => r.text()),
+      fetch('/search/geo.json').then((r) => r.json()),
+      fetch('/search/search-meta.json').then((r) => (r.ok ? r.json() : null)),
+    ]);
+    mini = MiniSearch.loadJSON(kwRaw, {
+      fields: ['name', 'dishNames', 'area', 'categories', 'body'],
+      storeFields: ['name', 'area', 'rating', 'price', 'hawker', 'country', 'cats'],
+    });
+    for (const g of geoRaw) geo.set(g.slug, g);
+    if (metaRaw?.model) {
+      const bin = await fetch('/search/embeddings.bin').then((r) => r.arrayBuffer());
+      emb = { ...metaRaw, vectors: new Int8Array(bin) };
+    }
+    statusEl.textContent = 'Type to search, or use 📍 to browse nearby.';
+  })();
+
+  // ---------- helpers ----------
+  const km = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+    const R = 6371, dLat = ((b.lat - a.lat) * Math.PI) / 180, dLng = ((b.lng - a.lng) * Math.PI) / 180;
+    const s = Math.sin(dLat / 2) ** 2 + Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(s));
+  };
+
+  const cosineTop = (queryVec: number[], n = 50) => {
+    if (!emb?.vectors) return [];
+    const { slugs, scales, dims, vectors } = emb;
+    const qn = Math.hypot(...queryVec);
+    const q = queryVec.map((x) => x / qn);
+    const scores: [string, number][] = [];
+    for (let i = 0; i < slugs.length; i++) {
+      let dot = 0;
+      const base = i * dims, scale = scales[i];
+      for (let k = 0; k < dims; k++) dot += q[k] * vectors[base + k] * scale;
+      scores.push([slugs[i], dot]);
+    }
+    return scores.sort((a, b) => b[1] - a[1]).slice(0, n).map(([slug]) => slug);
+  };
+
+  // ---------- rendering ----------
+  const card = (id: string, s: Stored, dist?: number) => {
+    const star = s.rating === 'highly_recommend';
+    return `<a href="/restaurant/${id}" class="block rounded-xl border border-stone-200 bg-white px-4 py-3 hover:border-stone-300 hover:shadow-sm">
+      <div class="flex items-center justify-between gap-2">
+        <span class="font-semibold">${s.name}</span>
+        <span class="shrink-0 text-sm">${star ? '⭐' : '👍'}${s.hawker ? ' 🏪' : ''}</span>
+      </div>
+      <p class="mt-0.5 text-sm text-stone-500">
+        ${[s.area, s.country !== 'Singapore' ? s.country : null, s.price ? `~$${s.price}/pax` : null, dist !== undefined ? `${dist < 1 ? Math.round(dist * 1000) + 'm' : dist.toFixed(1) + 'km'} away` : null].filter(Boolean).join(' · ')}
+      </p>
+    </a>`;
+  };
+
+  const passesFacets = (s: Stored) =>
+    (!state.star || s.rating === 'highly_recommend') &&
+    (!state.hawker || s.hawker) &&
+    (!state.cat || s.cats.includes(state.cat));
+
+  function render() {
+    if (!mini) return;
+    let items: { id: string; s: Stored; dist?: number }[] = [];
+
+    if (state.q.trim().length >= 2) {
+      const kw = mini.search(state.q, { boost: { name: 3, dishNames: 2 }, prefix: true, fuzzy: 0.2 }).slice(0, 60);
+      // RRF fuse keyword ranks with semantic ranks (if computed for this query)
+      const rrf = new Map<string, { score: number; s: Stored }>();
+      kw.forEach((r, i) => rrf.set(r.id, { score: 1 / (60 + i), s: r as unknown as Stored }));
+      if (state.semForQuery === state.q) {
+        let i = 0;
+        for (const [slug, rank] of state.semRanks) {
+          const cur = rrf.get(slug);
+          if (cur) cur.score += 1 / (60 + rank);
+          i++;
+        }
+      }
+      kw.forEach((r) => stored.set(r.id, r as unknown as Stored));
+      items = [...rrf.entries()]
+        .sort((a, b) => b[1].score - a[1].score)
+        .map(([id, v]) => ({ id, s: v.s }));
+    } else if (state.origin) {
+      // browse mode: everything with coords, nearest first
+      items = [...geo.values()]
+        .map((g) => ({ id: g.slug, s: { ...g, cats: g.categories }, dist: km(state.origin!, g) }))
+        .sort((a, b) => a.dist! - b.dist!);
+    }
+
+    if (state.origin) {
+      for (const it of items) {
+        const g = geo.get(it.id);
+        if (g && it.dist === undefined) it.dist = km(state.origin, g);
+      }
+      if (state.byDistance) items.sort((a, b) => (a.dist ?? 1e9) - (b.dist ?? 1e9));
+    }
+
+    items = items.filter((it) => it.s && passesFacets(it.s)).slice(0, 40);
+    resultsEl.innerHTML = items.map((it) => card(it.id, it.s, it.dist)).join('');
+    if (state.q.trim().length >= 2 || state.origin) {
+      statusEl.textContent = items.length
+        ? `${items.length} result${items.length === 1 ? '' : 's'}${state.semForQuery === state.q && state.q ? ' · hybrid' : ''}`
+        : 'Nothing found — try fewer words';
+    } else {
+      statusEl.textContent = 'Type to search, or use 📍 to browse nearby.';
+      resultsEl.innerHTML = '';
+    }
+  }
+
+  // ---------- semantic search (debounced, non-blocking) ----------
+  let semTimer: ReturnType<typeof setTimeout>;
+  function scheduleSemantic() {
+    clearTimeout(semTimer);
+    if (!emb || state.q.trim().length < 3) return;
+    semTimer = setTimeout(async () => {
+      const q = state.q;
+      try {
+        const res = await fetch(`/api/embed?q=${encodeURIComponent(q)}`);
+        if (!res.ok) return;
+        const { embedding } = await res.json();
+        const top = cosineTop(embedding);
+        state.semRanks = new Map(top.map((slug, i) => [slug, i]));
+        state.semForQuery = q;
+        if (state.q === q) render();
+      } catch {
+        /* keyword-only, silently */
+      }
+    }, 450);
+  }
+
+  // ---------- events ----------
+  let kwTimer: ReturnType<typeof setTimeout>;
+  qEl.addEventListener('input', () => {
+    state.q = qEl.value;
+    clearTimeout(kwTimer);
+    kwTimer = setTimeout(async () => {
+      await ready;
+      render();
+      scheduleSemantic();
+    }, 120);
+  });
+
+  $('near-me').addEventListener('click', () => {
+    statusEl.textContent = 'Locating…';
+    navigator.geolocation?.getCurrentPosition(
+      async (pos) => {
+        state.origin = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        $('origin-label').textContent = '· from your location';
+        $('sort-dist').classList.remove('hidden');
+        await ready;
+        render();
+      },
+      () => (statusEl.textContent = 'Could not get your location.')
+    );
+  });
+
+  $('postal').addEventListener('change', async () => {
+    const code = ($('postal') as HTMLInputElement).value.trim();
+    if (!/^\d{6}$/.test(code)) return;
+    statusEl.textContent = 'Looking up postal code…';
+    const res = await fetch(`/api/postal?code=${code}`);
+    if (!res.ok) {
+      statusEl.textContent = 'Postal code not found.';
+      return;
+    }
+    state.origin = await res.json();
+    $('origin-label').textContent = `· from ${code}`;
+    $('sort-dist').classList.remove('hidden');
+    await ready;
+    render();
+  });
+
+  $('sort-dist').addEventListener('click', (e) => {
+    state.byDistance = !state.byDistance;
+    (e.currentTarget as HTMLElement).classList.toggle('bg-stone-900');
+    (e.currentTarget as HTMLElement).classList.toggle('text-white');
+    render();
+  });
+
+  document.querySelectorAll('.facet').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      const f = (btn as HTMLElement).dataset.facet as 'star' | 'hawker';
+      state[f] = !state[f];
+      btn.classList.toggle('bg-stone-900');
+      btn.classList.toggle('text-white');
+      render();
+    })
+  );
+
+  $('cat').addEventListener('change', () => {
+    state.cat = ($('cat') as HTMLSelectElement).value;
+    render();
+  });
+
+  ready.then(render);
+</script>

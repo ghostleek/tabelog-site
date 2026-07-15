@@ -1,0 +1,26 @@
+---
+import Base from '../../../layouts/Base.astro';
+import RestaurantCard from '../../../components/RestaurantCard.astro';
+import { getPublicRestaurants, slugifyArea } from '../../../lib/restaurants';
+
+export async function getStaticPaths() {
+  const all = await getPublicRestaurants();
+  const areas = new Map<string, string>();
+  for (const r of all) {
+    if (r.data.area) areas.set(slugifyArea(r.data.area), r.data.area);
+  }
+  return [...areas.entries()].map(([slug, name]) => ({ params: { area: slug }, props: { areaName: name } }));
+}
+
+const { areaName } = Astro.props;
+const all = await getPublicRestaurants();
+const restaurants = all.filter((r) => r.data.area === areaName);
+---
+
+<Base title={`Food in ${areaName} — tabelog by kahhow`} description={`Personally recommended places to eat around ${areaName}, Singapore.`}>
+  <h1 class="text-2xl font-bold">📍 {areaName}</h1>
+  <p class="mt-1 text-stone-600">{restaurants.length} place{restaurants.length === 1 ? '' : 's'} worth eating at.</p>
+  <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    {restaurants.map((r) => <RestaurantCard restaurant={r} />)}
+  </div>
+</Base>
