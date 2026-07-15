@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://tabelog.kahhow.com/sitemap-index.xml
