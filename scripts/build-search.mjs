@@ -52,8 +52,26 @@ for (const file of fs.readdirSync(NOTES).filter((f) => f.endsWith('.md')).sort()
     hawker: fm.is_hawker ?? false,
     country: fm.country ?? 'Singapore',
     cats: fm.categories ?? [],
+    lastVisit: (fm.visits ?? []).map((v) => String(v.date)).sort().at(-1) ?? null,
+    visitCount: (fm.prior_visits ?? 0) + (fm.visits ?? []).length,
   });
 }
+
+// ---------------- manifest (spotlight / saved list / cards) ----------------
+const manifest = docs.map((d) => ({
+  slug: d.id,
+  name: d.name,
+  area: d.area || null,
+  rating: d.rating,
+  price: d.price,
+  hawker: d.hawker,
+  country: d.country,
+  categories: d.cats,
+  lastVisit: d.lastVisit,
+  visitCount: d.visitCount,
+  snippet: d.body.replace(/[#*_>\[\]]/g, '').replace(/\s+/g, ' ').trim().slice(0, 180) || null,
+}));
+fs.writeFileSync(path.join(OUT, 'manifest.json'), JSON.stringify(manifest));
 
 // ---------------- keyword index ----------------
 const mini = new MiniSearch({

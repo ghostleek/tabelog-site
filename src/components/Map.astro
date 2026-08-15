@@ -1,13 +1,24 @@
 ---
 // Leaflet island. Loads /search/geo.json (also used by proximity search) and
-// renders rating-colored circle markers with popups. Client-only by nature.
+// renders rating-colored circle markers with popups. On touch devices the map
+// starts inert (tap to activate) so it doesn't hijack page scrolling.
 interface Props {
   height?: string;
+  country?: string; // 'all' disables the filter
 }
-const { height = 'h-[60vh] sm:h-[420px]' } = Astro.props;
+const { height = 'h-[340px] sm:h-[440px]', country = 'Singapore' } = Astro.props;
 ---
 
-<div id="map" class:list={['w-full rounded-xl border border-stone-200 z-0', height]}></div>
+<div id="map-wrap" class="relative">
+  <div id="map" data-country={country} class:list={['w-full rounded-xl border border-stone-200 z-0', height]}></div>
+  <button
+    id="map-unlock"
+    class="absolute inset-0 z-[500] hidden w-full cursor-pointer items-end justify-center rounded-xl bg-transparent pb-4"
+    aria-label="Activate map"
+  >
+    <span class="rounded-full bg-stone-900/80 px-4 py-1.5 text-sm font-medium text-white">Tap to explore the map</span>
+  </button>
+</div>
 
 <script>
   import L from 'leaflet';
@@ -26,20 +37,43 @@ const { height = 'h-[60vh] sm:h-[420px]' } = Astro.props;
     area: string | null;
     price: number | null;
     hawker: boolean;
+    country: string;
   };
 
-  const map = L.map('map', { scrollWheelZoom: false }).setView([1.3521, 103.8198], 12);
+  const mapEl = document.getElementById('map')!;
+  const countryFilter = mapEl.dataset.country || 'Singapore';
+  const touch = window.matchMedia('(pointer: coarse)').matches;
+
+  const map = L.map('map', {
+    scrollWheelZoom: false,
+    dragging: !touch, // inert on touch until explicitly activated
+    tap: true,
+  }).setView([1.3521, 103.8198], 12);
+
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     maxZoom: 19,
   }).addTo(map);
+
+  // Touch: show the unlock chip; one tap enables full interaction.
+  const unlock = document.getElementById('map-unlock')!;
+  if (touch) {
+    unlock.classList.remove('hidden');
+    unlock.classList.add('flex');
+    unlock.addEventListener('click', () => {
+      map.dragging.enable();
+      map.scrollWheelZoom.enable();
+      unlock.remove();
+    });
+  }
 
   const cluster = (L as any).markerClusterGroup({ maxClusterRadius: 40 });
 
   fetch('/search/geo.json')
     .then((r) => r.json())
     .then((items: GeoItem[]) => {
-      for (const it of items) {
+      const shown = countryFilter === 'all' ? items : items.filter((it) => it.country === countryFilter);
+      for (const it of shown) {
         const gold = it.rating === 'highly_recommend';
         const marker = L.circleMarker([it.lat, it.lng], {
           radius: gold ? 9 : 7,
@@ -58,7 +92,7 @@ const { height = 'h-[60vh] sm:h-[420px]' } = Astro.props;
       map.addLayer(cluster);
     });
 
-  // "Find me" control (v2 parity): pan to device location
+  // "Find me" control: pan to device location
   const FindMe = L.Control.extend({
     options: { position: 'topleft' },
     onAdd() {

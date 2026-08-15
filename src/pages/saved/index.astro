@@ -1,0 +1,62 @@
+---
+import Base from '../../layouts/Base.astro';
+---
+
+<Base title="Saved — tabelog by kahhow" description="Your saved places on this device.">
+  <h1 class="text-2xl font-bold">♥ Saved</h1>
+  <p class="mt-1 text-sm text-stone-500">Saved on this device only — no account needed.</p>
+  <p id="saved-empty" class="mt-8 hidden text-stone-500">
+    Nothing saved yet. Hit ♡ on a place — start with the <a href="/" class="underline">archives spotlight</a>.
+  </p>
+  <div id="saved-grid" class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"></div>
+</Base>
+
+<script>
+  import { getSaved, toggleSaved } from '../../lib/saved';
+
+  type Entry = {
+    slug: string;
+    name: string;
+    area: string | null;
+    rating: string;
+    price: number | null;
+    hawker: boolean;
+    country: string;
+  };
+
+  const grid = document.getElementById('saved-grid')!;
+  const empty = document.getElementById('saved-empty')!;
+
+  function render(entries: Entry[]) {
+    const saved = getSaved();
+    const items = saved
+      .map((slug) => entries.find((e) => e.slug === slug))
+      .filter((e): e is Entry => !!e);
+    empty.classList.toggle('hidden', items.length > 0);
+    grid.innerHTML = items
+      .map(
+        (e) => `<div class="relative rounded-xl border border-stone-200 bg-white p-4 hover:border-stone-300">
+          <a href="/restaurant/${e.slug}" class="block">
+            <div class="flex items-start justify-between gap-2 pr-8">
+              <span class="font-semibold leading-snug">${e.name}</span>
+              <span class="shrink-0">${e.rating === 'highly_recommend' ? '⭐' : '👍'}</span>
+            </div>
+            <p class="mt-1 text-sm text-stone-500">${[e.area, e.country !== 'Singapore' ? e.country : null, e.price ? `~$${e.price}/pax` : null, e.hawker ? '🏪' : null].filter(Boolean).join(' · ')}</p>
+          </a>
+          <button data-slug="${e.slug}" title="Remove" class="unsave absolute right-3 top-3 text-stone-400 hover:text-rose-600">✕</button>
+        </div>`
+      )
+      .join('');
+    grid.querySelectorAll<HTMLButtonElement>('.unsave').forEach((btn) =>
+      btn.addEventListener('click', () => {
+        toggleSaved(btn.dataset.slug!);
+        render(entries);
+      })
+    );
+  }
+
+  fetch('/search/manifest.json')
+    .then((r) => r.json())
+    .then(render)
+    .catch(() => (empty.classList.remove('hidden')));
+</script>

@@ -1,0 +1,118 @@
+---
+// "From the archives" — a random highly-recommended Singapore place the owner
+// hasn't been back to in 6+ months. Random per pageview (client-side), so it
+// stays fresh between deploys. Save persists to localStorage.
+---
+
+<section id="spotlight" class="mt-8 hidden">
+  <div class="flex items-baseline justify-between">
+    <h2 class="text-xl font-bold">🗄️ From the archives</h2>
+    <button id="spotlight-shuffle" class="text-sm font-medium text-stone-500 hover:text-stone-700">🔀 another one</button>
+  </div>
+  <div class="mt-3 rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-5">
+    <div class="flex items-start justify-between gap-3">
+      <a id="spotlight-link" href="#" class="text-lg font-bold leading-snug hover:underline"></a>
+      <button
+        id="spotlight-save"
+        class="shrink-0 rounded-full border border-stone-300 bg-white px-3 py-1 text-sm font-medium hover:bg-stone-100"
+        aria-pressed="false"
+      >
+        ♡ Save
+      </button>
+    </div>
+    <p id="spotlight-meta" class="mt-1 text-sm text-stone-500"></p>
+    <p id="spotlight-quote" class="mt-3 hidden border-l-2 border-amber-300 pl-3 text-sm italic text-stone-600"></p>
+    <p id="spotlight-ago" class="mt-3 text-sm font-medium text-amber-800"></p>
+  </div>
+</section>
+
+<script>
+  import { isSaved, toggleSaved } from '../lib/saved';
+
+  type Entry = {
+    slug: string;
+    name: string;
+    area: string | null;
+    rating: string;
+    price: number | null;
+    hawker: boolean;
+    country: string;
+    lastVisit: string | null;
+    snippet: string | null;
+  };
+
+  const $ = (id: string) => document.getElementById(id)!;
+  let pool: Entry[] = [];
+  let current: Entry | null = null;
+
+  const monthsSince = (iso: string) =>
+    Math.floor((Date.now() - new Date(iso).getTime()) / (30.44 * 24 * 3600 * 1000));
+
+  const agoLabel = (iso: string | null) => {
+    if (!iso) return 'No logged visit yet — overdue by definition.';
+    const m = monthsSince(iso);
+    if (m < 12) return `Last visited ${m} month${m === 1 ? '' : 's'} ago — overdue for a revisit.`;
+    const y = Math.floor(m / 12);
+    return `Last visited over ${y} year${y === 1 ? '' : 's'} ago — overdue for a revisit.`;
+  };
+
+  function show(e: Entry) {
+    current = e;
+    const link = $('spotlight-link') as HTMLAnchorElement;
+    link.textContent = e.name;
+    link.href = `/restaurant/${e.slug}`;
+    $('spotlight-meta').textContent = [
+      '⭐ Highly recommend',
+      e.area,
+      e.price ? `~$${e.price}/pax` : null,
+      e.hawker ? '🏪 hawker' : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    const quote = $('spotlight-quote');
+    if (e.snippet) {
+      quote.textContent = `“${e.snippet}${e.snippet.length >= 180 ? '…' : ''}”`;
+      quote.classList.remove('hidden');
+    } else {
+      quote.classList.add('hidden');
+    }
+    $('spotlight-ago').textContent = agoLabel(e.lastVisit);
+    paintSave();
+    $('spotlight').classList.remove('hidden');
+  }
+
+  function paintSave() {
+    if (!current) return;
+    const btn = $('spotlight-save');
+    const saved = isSaved(current.slug);
+    btn.textContent = saved ? '♥ Saved' : '♡ Save';
+    btn.setAttribute('aria-pressed', String(saved));
+    btn.classList.toggle('bg-rose-50', saved);
+    btn.classList.toggle('border-rose-200', saved);
+    btn.classList.toggle('text-rose-700', saved);
+  }
+
+  const pick = () => {
+    if (pool.length === 0) return;
+    const others = pool.filter((e) => e.slug !== current?.slug);
+    show(others[Math.floor(Math.random() * others.length)] ?? pool[0]);
+  };
+
+  fetch('/search/manifest.json')
+    .then((r) => r.json())
+    .then((all: Entry[]) => {
+      const sgTop = all.filter((e) => e.rating === 'highly_recommend' && e.country === 'Singapore');
+      const historic = sgTop.filter((e) => !e.lastVisit || monthsSince(e.lastVisit) >= 6);
+      pool = historic.length > 0 ? historic : sgTop;
+      pick();
+    })
+    .catch(() => {});
+
+  $('spotlight-shuffle').addEventListener('click', pick);
+  $('spotlight-save').addEventListener('click', () => {
+    if (current) {
+      toggleSaved(current.slug);
+      paintSave();
+    }
+  });
+</script>

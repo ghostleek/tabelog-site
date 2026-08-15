@@ -94,6 +94,14 @@ const jsonLd = {
     }
 
     <section class="mt-8 flex flex-wrap items-center gap-3 text-sm text-stone-600">
+      <button
+        id="save-btn"
+        data-slug={r.id}
+        class="rounded-full border border-stone-300 bg-white px-3 py-1 font-medium hover:bg-stone-100"
+        aria-pressed="false"
+      >
+        ♡ Save
+      </button>
       <span class="rounded-full bg-stone-100 px-3 py-1">
         🍴 {visits} visit{visits === 1 ? '' : 's'}{last && ` · last ${last.toISOString().slice(0, 10)}`}
       </span>
@@ -110,3 +118,23 @@ const jsonLd = {
     </section>
   </article>
 </Base>
+
+<script>
+  import { isSaved, toggleSaved } from '../../lib/saved';
+
+  const btn = document.getElementById('save-btn') as HTMLButtonElement;
+  const slug = btn.dataset.slug!;
+  const paint = () => {
+    const saved = isSaved(slug);
+    btn.textContent = saved ? '♥ Saved' : '♡ Save';
+    btn.setAttribute('aria-pressed', String(saved));
+    btn.classList.toggle('bg-rose-50', saved);
+    btn.classList.toggle('border-rose-200', saved);
+    btn.classList.toggle('text-rose-700', saved);
+  };
+  btn.addEventListener('click', () => {
+    toggleSaved(slug);
+    paint();
+  });
+  paint();
+</script>

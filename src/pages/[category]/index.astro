@@ -12,9 +12,9 @@ export function getStaticPaths() {
 const { category } = Astro.params;
 const all = await getPublicRestaurants();
 
-const pageDef: Record<string, { title: string; blurb: string; filter: (r: Restaurant) => boolean }> = {
-  all: { title: 'All places', blurb: 'Everything, unfiltered.', filter: () => true },
-  featured: { title: '⭐ Featured', blurb: 'The highly-recommended shortlist — go out of your way for these.', filter: (r) => r.data.rating === 'highly_recommend' },
+const pageDef: Record<string, { title: string; blurb: string; filter: (r: Restaurant) => boolean; split?: boolean }> = {
+  all: { title: 'All places', blurb: 'Everything, everywhere, unfiltered.', filter: () => true },
+  featured: { title: '⭐ Featured', blurb: 'The highly-recommended shortlist — go out of your way for these.', filter: (r) => r.data.rating === 'highly_recommend', split: true },
   global: { title: '🌏 Beyond Singapore', blurb: 'Eaten abroad, still worth remembering.', filter: (r) => r.data.country !== 'Singapore' },
 };
 const def =
@@ -25,16 +25,30 @@ const def =
       title: `${c.emoji} ${c.label}`,
       blurb: `${c.label} worth going back for.`,
       filter: (r: Restaurant) => r.data.categories.includes(category as CategorySlug),
+      split: true,
     };
   })();
 
-const restaurants = all.filter(def.filter);
+const matched = all.filter(def.filter);
+// SG by default; overseas tucked into a disclosure on split pages
+const sg = def.split ? matched.filter((r) => r.data.country === 'Singapore') : matched;
+const overseas = def.split ? matched.filter((r) => r.data.country !== 'Singapore') : [];
 ---
 
 <Base title={`${def.title} — tabelog by kahhow`} description={def.blurb}>
   <h1 class="text-2xl font-bold">{def.title}</h1>
-  <p class="mt-1 text-stone-600">{def.blurb} <span class="text-stone-400">({restaurants.length})</span></p>
+  <p class="mt-1 text-stone-600">{def.blurb} <span class="text-stone-400">({def.split ? sg.length : matched.length})</span></p>
   <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-    {restaurants.map((r) => <RestaurantCard restaurant={r} />)}
+    {sg.map((r) => <RestaurantCard restaurant={r} />)}
   </div>
+  {
+    overseas.length > 0 && (
+      <details class="mt-8">
+        <summary class="cursor-pointer text-sm font-medium text-stone-500 hover:text-stone-700">
+          🌏 {overseas.length} more beyond Singapore
+        </summary>
+        <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{overseas.map((r) => <RestaurantCard restaurant={r} />)}</div>
+      </details>
+    )
+  }
 </Base>

@@ -1,19 +1,26 @@
 ---
 import { Image } from 'astro:assets';
 import { RATING_DISPLAY, CATEGORIES } from '../lib/taxonomy';
-import { priceBand, type Restaurant } from '../lib/restaurants';
+import { totalVisits, type Restaurant } from '../lib/restaurants';
 
 interface Props {
   restaurant: Restaurant;
 }
 const { restaurant: r } = Astro.props;
 const rating = RATING_DISPLAY[r.data.rating];
-const band = priceBand(r.data.price_per_pax);
+const visits = totalVisits(r);
+
+const meta = [
+  r.data.area,
+  r.data.country !== 'Singapore' ? r.data.country : null,
+  r.data.price_per_pax ? `~$${r.data.price_per_pax}/pax` : null,
+].filter(Boolean);
 ---
 
 <a
   href={`/restaurant/${r.id}`}
-  class="block rounded-xl border border-stone-200 bg-white p-4 transition hover:border-stone-300 hover:shadow-sm"
+  data-country={r.data.country}
+  class="restaurant-card block rounded-xl border border-stone-200 bg-white p-4 transition hover:border-stone-300 hover:shadow-sm"
 >
   {
     r.data.cover && (
@@ -24,15 +31,12 @@ const band = priceBand(r.data.price_per_pax);
     <h3 class="font-semibold leading-snug">{r.data.name}</h3>
     <span title={rating.label} class="shrink-0 text-lg">{rating.emoji}</span>
   </div>
-  <p class="mt-1 text-sm text-stone-500">
-    {r.data.area && <span>{r.data.area}</span>}
-    {r.data.country !== 'Singapore' && <span> · {r.data.country}</span>}
-    {band && <span> · {band}</span>}
-    {r.data.is_hawker && <span> · 🏪 hawker</span>}
+  {meta.length > 0 && <p class="mt-1 text-sm text-stone-500">{meta.join(' · ')}</p>}
+  <p class="mt-2 flex items-center gap-2 text-xs text-stone-500">
+    {r.data.categories.map((c) => (
+      <span class="rounded-full bg-stone-100 px-2 py-0.5">{CATEGORIES[c].emoji} {CATEGORIES[c].label}</span>
+    ))}
+    {r.data.is_hawker && <span class="rounded-full bg-amber-50 px-2 py-0.5 text-amber-800">🏪 hawker</span>}
+    {visits > 1 && <span class="ml-auto shrink-0">eaten {visits}×</span>}
   </p>
-  {
-    r.data.categories.length > 0 && (
-      <p class="mt-2 text-sm">{r.data.categories.map((c) => CATEGORIES[c].emoji).join(' ')}</p>
-    )
-  }
 </a>

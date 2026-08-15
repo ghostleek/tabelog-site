@@ -34,6 +34,10 @@ import Base from '../layouts/Base.astro';
         <option value="cakes">🍰 cakes</option>
         <option value="alcohol">🍸 alcohol</option>
       </select>
+      <select id="country" class="rounded-full border border-stone-300 bg-white px-3 py-1.5">
+        <option value="Singapore" selected>🇸🇬 Singapore</option>
+        <option value="all">🌍 everywhere</option>
+      </select>
       <button id="sort-dist" class="hidden rounded-full border border-stone-300 bg-white px-3 py-1.5 hover:bg-stone-100">↕ by distance</button>
     </div>
     <p id="status" class="text-sm text-stone-400">Loading index…</p>
@@ -62,6 +66,7 @@ import Base from '../layouts/Base.astro';
     star: false,
     hawker: false,
     cat: '',
+    country: 'Singapore',
     byDistance: false,
     semRanks: new Map<string, number>(),
     semForQuery: '',
@@ -69,11 +74,21 @@ import Base from '../layouts/Base.astro';
 
   // ---------- data loading ----------
   const ready = (async () => {
-    const [kwRaw, geoRaw, metaRaw] = await Promise.all([
+    const [kwRaw, geoRaw, metaRaw, manifest] = await Promise.all([
       fetch('/search/keyword-index.json').then((r) => r.text()),
       fetch('/search/geo.json').then((r) => r.json()),
       fetch('/search/search-meta.json').then((r) => (r.ok ? r.json() : null)),
+      fetch('/search/manifest.json').then((r) => (r.ok ? r.json() : [])),
     ]);
+    // populate country facet from data (Singapore + everywhere are hardcoded)
+    const countrySel = document.getElementById('country') as HTMLSelectElement;
+    const others = [...new Set(manifest.map((e: any) => e.country))].filter((c) => c !== 'Singapore').sort() as string[];
+    for (const c of others) {
+      const opt = document.createElement('option');
+      opt.value = c;
+      opt.textContent = `🌏 ${c}`;
+      countrySel.insertBefore(opt, countrySel.lastElementChild);
+    }
     mini = MiniSearch.loadJSON(kwRaw, {
       fields: ['name', 'dishNames', 'area', 'categories', 'body'],
       storeFields: ['name', 'area', 'rating', 'price', 'hawker', 'country', 'cats'],
@@ -125,7 +140,8 @@ import Base from '../layouts/Base.astro';
   const passesFacets = (s: Stored) =>
     (!state.star || s.rating === 'highly_recommend') &&
     (!state.hawker || s.hawker) &&
-    (!state.cat || s.cats.includes(state.cat));
+    (!state.cat || s.cats.includes(state.cat)) &&
+    (state.country === 'all' || s.country === state.country);
 
   function render() {
     if (!mini) return;
@@ -166,9 +182,18 @@ import Base from '../layouts/Base.astro';
     items = items.filter((it) => it.s && passesFacets(it.s)).slice(0, 40);
     resultsEl.innerHTML = items.map((it) => card(it.id, it.s, it.dist)).join('');
     if (state.q.trim().length >= 2 || state.origin) {
-      statusEl.textContent = items.length
-        ? `${items.length} result${items.length === 1 ? '' : 's'}${state.semForQuery === state.q && state.q ? ' · hybrid' : ''}`
-        : 'Nothing found — try fewer words';
+      if (items.length > 0) {
+        statusEl.textContent = `${items.length} result${items.length === 1 ? '' : 's'}${state.semForQuery === state.q && state.q ? ' · hybrid' : ''}`;
+      } else if (state.country !== 'all') {
+        statusEl.innerHTML = `Nothing in ${state.country} — <button id="widen" class="font-medium underline">search everywhere</button>`;
+        document.getElementById('widen')?.addEventListener('click', () => {
+          state.country = 'all';
+          (document.getElementById('country') as HTMLSelectElement).value = 'all';
+          render();
+        });
+      } else {
+        statusEl.textContent = 'Nothing found — try fewer words';
+      }
     } else {
       statusEl.textContent = 'Type to search, or use 📍 to browse nearby.';
       resultsEl.innerHTML = '';
@@ -257,6 +282,11 @@ import Base from '../layouts/Base.astro';
 
   $('cat').addEventListener('change', () => {
     state.cat = ($('cat') as HTMLSelectElement).value;
+    render();
+  });
+
+  $('country').addEventListener('change', () => {
+    state.country = ($('country') as HTMLSelectElement).value;
     render();
   });
 

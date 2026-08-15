@@ -1,0 +1,29 @@
+---
+import Base from '../../../layouts/Base.astro';
+import RestaurantCard from '../../../components/RestaurantCard.astro';
+import { getPublicRestaurants, slugifyArea } from '../../../lib/restaurants';
+
+export async function getStaticPaths() {
+  const all = await getPublicRestaurants();
+  const countries = new Map<string, string>();
+  for (const r of all) {
+    if (r.data.country !== 'Singapore') countries.set(slugifyArea(r.data.country), r.data.country);
+  }
+  return [...countries.entries()].map(([slug, name]) => ({ params: { country: slug }, props: { countryName: name } }));
+}
+
+const { countryName } = Astro.props;
+const all = await getPublicRestaurants();
+const restaurants = all.filter((r) => r.data.country === countryName);
+---
+
+<Base title={`Food in ${countryName} — tabelog by kahhow`} description={`Personally recommended places eaten at in ${countryName}.`}>
+  <h1 class="text-2xl font-bold">🌏 {countryName}</h1>
+  <p class="mt-1 text-stone-600">
+    {restaurants.length} place{restaurants.length === 1 ? '' : 's'} worth remembering ·
+    <a href="/" class="underline hover:text-stone-800">back to Singapore</a>
+  </p>
+  <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    {restaurants.map((r) => <RestaurantCard restaurant={r} />)}
+  </div>
+</Base>

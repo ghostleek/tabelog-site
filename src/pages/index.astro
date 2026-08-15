@@ -1,26 +1,32 @@
 ---
 import Base from '../layouts/Base.astro';
 import Map from '../components/Map.astro';
+import Spotlight from '../components/Spotlight.astro';
 import RestaurantCard from '../components/RestaurantCard.astro';
 import { getPublicRestaurants, slugifyArea, lastVisit } from '../lib/restaurants';
 import { CATEGORIES, CATEGORY_SLUGS } from '../lib/taxonomy';
 
 const restaurants = await getPublicRestaurants();
-const featured = restaurants.filter((r) => r.data.rating === 'highly_recommend');
-const recent = [...restaurants]
+const sg = restaurants.filter((r) => r.data.country === 'Singapore');
+const abroad = restaurants.length - sg.length;
+const countries = [...new Set(restaurants.map((r) => r.data.country))]
+  .filter((c) => c !== 'Singapore')
+  .sort();
+const featured = sg.filter((r) => r.data.rating === 'highly_recommend');
+const recent = [...sg]
   .filter((r) => lastVisit(r))
   .sort((a, b) => lastVisit(b)!.getTime() - lastVisit(a)!.getTime())
   .slice(0, 6);
-const areas = [...new Set(restaurants.map((r) => r.data.area).filter((a): a is string => !!a))].sort();
+const areas = [...new Set(sg.map((r) => r.data.area).filter((a): a is string => !!a))].sort();
 ---
 
 <Base title="tabelog by kahhow — food actually worth revisiting">
-  <section class="py-6 text-center sm:py-10">
+  <section class="py-5 text-center sm:py-8">
     <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">Food actually worth revisiting</h1>
     <p class="mx-auto mt-3 max-w-xl text-stone-600">
-      {restaurants.length} places personally eaten, paid for, and rated — mostly Singapore, hawkers first.
+      {sg.length} Singapore places personally eaten, paid for, and rated — hawkers first. Plus {abroad} beyond.
     </p>
-    <div class="mt-5 flex flex-wrap justify-center gap-2">
+    <div class="mt-5 flex flex-wrap items-center justify-center gap-2">
       {
         CATEGORY_SLUGS.map((c) => (
           <a href={`/${c}`} class="rounded-full border border-stone-300 bg-white px-4 py-1.5 text-sm font-medium hover:bg-stone-100">
@@ -29,11 +35,24 @@ const areas = [...new Set(restaurants.map((r) => r.data.area).filter((a): a is s
         ))
       }
       <a href="/featured" class="rounded-full border border-amber-300 bg-amber-50 px-4 py-1.5 text-sm font-medium hover:bg-amber-100">⭐ Featured</a>
-      <a href="/global" class="rounded-full border border-stone-300 bg-white px-4 py-1.5 text-sm font-medium hover:bg-stone-100">🌏 Beyond SG</a>
+      <select
+        id="country-nav"
+        aria-label="Filter by country"
+        class="rounded-full border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium"
+      >
+        <option value="/">🇸🇬 Singapore</option>
+        {countries.map((c) => <option value={`/country/${slugifyArea(c)}`}>🌏 {c}</option>)}
+        <option value="/all">🌍 Everywhere</option>
+      </select>
     </div>
   </section>
 
-  <Map />
+  <Spotlight />
+
+  <section class="mt-8">
+    <h2 class="sr-only">Map</h2>
+    <Map country="Singapore" />
+  </section>
 
   <section class="mt-10">
     <div class="flex items-baseline justify-between">
@@ -65,3 +84,10 @@ const areas = [...new Set(restaurants.map((r) => r.data.area).filter((a): a is s
     </div>
   </section>
 </Base>
+
+<script>
+  const sel = document.getElementById('country-nav') as HTMLSelectElement;
+  sel.addEventListener('change', () => {
+    if (sel.value !== '/') window.location.href = sel.value;
+  });
+</script>
