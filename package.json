@@ -9,6 +9,7 @@
     "dev": "node scripts/sync-vault.mjs && node scripts/build-search.mjs && astro dev",
     "sync": "node scripts/sync-vault.mjs",
     "build": "node scripts/sync-vault.mjs && node scripts/build-search.mjs && astro build && node scripts/check-privacy.mjs",
+    "check": "find functions -name '*.js' -o -name '*.mjs' | xargs -n1 node --check && VAULT_PATH=tests/fixture-vault npm run build",
     "preview": "astro preview",
     "astro": "astro"
   },
