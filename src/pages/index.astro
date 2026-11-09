@@ -9,6 +9,7 @@ import { CATEGORIES, CATEGORY_SLUGS } from '../lib/taxonomy';
 const restaurants = await getPublicRestaurants();
 const sg = restaurants.filter((r) => r.data.country === 'Singapore');
 const abroad = restaurants.length - sg.length;
+const mapped = sg.filter(({ data }) => data.lat !== undefined && data.lng !== undefined).length;
 const countries = [...new Set(restaurants.map((r) => r.data.country))]
   .filter((c) => c !== 'Singapore')
   .sort();
@@ -50,7 +51,10 @@ const areas = [...new Set(sg.map((r) => r.data.area).filter((a): a is string => 
   <Spotlight />
 
   <section class="mt-8">
-    <h2 class="sr-only">Map</h2>
+    <div class="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+      <h2 class="text-xl font-bold">Singapore map</h2>
+      <p class="text-sm text-stone-600">{mapped} {mapped === 1 ? 'place with a map pin' : 'places with map pins'}</p>
+    </div>
     <Map country="Singapore" />
   </section>
 
