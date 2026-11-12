@@ -32,6 +32,13 @@ npm run build                          # sync + build + privacy check
 
 The vault repo needs a `SITE_DISPATCH_PAT` secret (repo scope on this repo) for its push → `vault-updated` dispatch.
 
+## Verify a publication
+
+1. Check the note in Obsidian. The public site takes entries with `public: true` and a `recommend` or `highly_recommend` rating. The build strips private comments and copies the listed photos.
+2. Confirm the Mac mirror pushed the note to `ghostleek/tabelog-vault`. An `Operation not permitted` in `~/Library/Logs/tabelog-mirror.log` means the mirror process needs macOS access to the iCloud vault.
+3. Check the **Deploy** workflow in `ghostleek/tabelog-site`. Its first step names any missing site secrets. If a vault push produces no run, check `SITE_DISPATCH_PAT` in the vault repo.
+4. Open the restaurant URL on the Cloudflare Pages deployment. Before changing the custom domain, check the page, the `/search/geo.json` response, and the privacy check from the same build. The custom domain needs to route to Pages for those changes to appear there.
+
 ## Search
 
 `/search` is hybrid: MiniSearch (keyword, instant) + bge-small-en-v1.5 embeddings (semantic re-rank via `/api/embed`, a Pages Function with a Workers AI binding), fused with reciprocal-rank fusion. Proximity uses browser geolocation or a typed postal code (OneMap) + haversine. If the embed call fails, search silently degrades to keyword-only.

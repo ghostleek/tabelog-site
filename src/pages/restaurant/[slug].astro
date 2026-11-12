@@ -43,10 +43,10 @@ const jsonLd = {
   <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} slot="head" />
 
   <article>
-    <header>
-      <div class="flex items-start justify-between gap-3">
-        <h1 class="text-2xl font-bold leading-tight sm:text-3xl">{r.data.name}</h1>
-        <span class="shrink-0 rounded-full bg-stone-100 px-3 py-1 text-sm font-medium">{rating.emoji} {rating.label}</span>
+    <header class="border-b border-stone-200 pb-5">
+      <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+        <h1 class="min-w-0 text-3xl font-bold leading-tight tracking-tight sm:text-4xl">{r.data.name}</h1>
+        <span class="rounded-full bg-stone-100 px-3 py-1 text-sm font-medium">{rating.emoji} {rating.label}</span>
       </div>
       <p class="mt-2 text-sm text-stone-500">
         {r.data.categories.map((c) => (
@@ -57,6 +57,16 @@ const jsonLd = {
         {r.data.is_hawker && <span class="mr-2">🏪 Hawker</span>}
         {r.data.price_per_pax ? <span>~${r.data.price_per_pax}/pax</span> : null}
       </p>
+      {gmaps && (
+        <a
+          href={gmaps}
+          target="_blank"
+          rel="noopener"
+          class="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-stone-900 px-4 text-sm font-medium text-white hover:bg-stone-700"
+        >
+          Get directions <span aria-hidden="true">↗</span>
+        </a>
+      )}
     </header>
 
     {
@@ -105,11 +115,6 @@ const jsonLd = {
       <span class="rounded-full bg-stone-100 px-3 py-1">
         🍴 {visits} visit{visits === 1 ? '' : 's'}{last && ` · last ${last.toISOString().slice(0, 10)}`}
       </span>
-      {gmaps && (
-        <a href={gmaps} target="_blank" rel="noopener" class="rounded-full bg-emerald-50 px-3 py-1 font-medium text-emerald-800 hover:bg-emerald-100">
-          Open in Google Maps ↗
-        </a>
-      )}
       {r.data.website && (
         <a href={r.data.website} target="_blank" rel="noopener" class="rounded-full bg-blue-50 px-3 py-1 font-medium text-blue-800 hover:bg-blue-100">
           Website ↗

@@ -23,9 +23,11 @@ export const slugifyArea = (area: string): string =>
 export const priceBand = (price?: number): string | undefined =>
   price === undefined || price === 0 ? undefined : price <= 15 ? '$' : price <= 40 ? '$$' : '$$$';
 
-/** Google Maps deep link — stored URL or a name+address search (v2 behavior). */
-export const mapsUrl = (r: Restaurant): string | undefined =>
-  r.data.google_maps ??
-  (r.data.address
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${r.data.name} ${r.data.address}`)}`
-    : undefined);
+export const mapsUrl = (r: Restaurant): string | undefined => {
+  const { google_maps, address, lat, lng, name } = r.data;
+  if (google_maps !== undefined) return google_maps;
+  // Some imported notes stored a Google Maps link in the address field.
+  if (address?.startsWith('https://www.google.com/maps/')) return address;
+  const query = address ? `${name} ${address}` : lat !== undefined && lng !== undefined ? `${lat},${lng}` : undefined;
+  return query ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}` : undefined;
+};
