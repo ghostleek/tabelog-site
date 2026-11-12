@@ -21,6 +21,12 @@ Consult these guides before working on related tasks:
 - [Adding styles or using Tailwind](https://docs.astro.build/en/guides/styling/)
 - [Supporting multiple languages](https://docs.astro.build/en/guides/internationalization/)
 
+## Specs and constitution
+
+Read `.specify/memory/constitution.md` and `specs/README.md` before changing behaviour.
+Non-trivial work follows Spec Kit (`/speckit-specify` → … → `/speckit-converge`); open
+work lives in each `specs/NNN-*/tasks.md`.
+
 ## Verify every change
 
 ```bash
